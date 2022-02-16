@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const validator = require('validator');
 const jwt = require('jsonwebtoken');
+const {clearImage} = require('../utility/clearImage');
 
 const User = require('../models/user');
 const Post = require('../models/post');
@@ -158,5 +159,77 @@ module.exports = {
       createdAt:post.createdAt.toISOString(),
       updatedAt:post.updatedAt.toISOString()
     };
+  },
+  editPost:async({id,userInput},req)=>{
+    
+    const post =await Post.findById(id).populate('creator');
+    if(!post){
+      const err = new Error('post not found');
+      throw err;
+    };
+    if(post.creator._id.toString()!==req.userId.toString()){
+      const err = new Error('not authrized');
+      err.code = 401;
+      throw err;
+    };
+    const title = userInput.title;
+    const content = userInput.content;
+    const imageUrl =userInput.imageUrl;
+    post.title=title;
+    post.content=content;
+    post.imageUrl=imageUrl;
+    const editedPost = await post.save();
+    return {
+      //!!! remember  ._doc !!
+      ...editedPost._doc,
+      _id:editedPost._id.toString(),
+      createdAt:editedPost.createdAt.toISOString(),
+      updatedAt:editedPost.updatedAt.toISOString()
+    }
+  },
+  deletePost:async({id},req)=>{
+    if(!req.isAuth){
+      const err = new Error('you are not loged in');
+      err.code = 401;
+      throw err;
+    }
+    const selectedPost = await Post.findById(id).populate('creator');
+    if(!selectedPost){
+      const err = new Error('can not find post');
+      err.code = 404;
+      throw err;
+    };
+    if(selectedPost.creator._id.toString()!==req.userId.toString()){
+      const err = new Error('not authorized');
+      err.code = 401;
+      throw err;
+    };
+    clearImage(selectedPost.imageUrl);
+    await Post.findByIdAndRemove(id);
+    const user = await User.findById(req.userId);
+    //delete post in user's posts
+    user.posts.pull(id);
+    await user.save();
+    return true
+  },
+  getStatus:async(argus,req)=>{
+    if(!req.isAuth){
+      const err = new Error('you are not loged in');
+      err.code = 401;
+      throw err;
+    };
+    const user = await User.findById(req.userId);
+    return user.status;
+  },
+  setStatus:async({status},req)=>{
+    if(!req.isAuth){
+      const err = new Error('you are not loged in');
+      err.code = 401;
+      throw err;
+    };
+    const user = await User.findById(req.userId);
+    user.status = status;
+    await user.save();
+    return user.status;
   }
 };

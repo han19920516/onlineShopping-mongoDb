@@ -37,6 +37,7 @@ const fileFilter = (req, file, cb) => {
 
 // app.use(bodyParser.urlencoded()); // x-www-form-urlencoded <form>
 app.use(bodyParser.json()); // application/json
+//image file multer
 app.use(
   multer({ storage: fileStorage, fileFilter: fileFilter }).single('image')
 );
@@ -55,21 +56,31 @@ app.use((req, res, next) => {
   }
   next();
 });
-
+//check Auth
 app.use(auth);
 //receive image /router
 app.put('/image',(req,res,next)=>{
+  console.log(req.file,req.body.oldPath);
+  //didn't update image
+  if(req.body.oldPath&&!req.file){
+    return res.status(200).json({filePath:req.body.oldPath});
+  };
   if(!req.file){
     return res.status(200).json({message:'No files uploaded'});
   };
-  if(req.body.oldPath){
+  //ADD new POST
+  if(!req.body.oldPath&&req.file){
+    const imageUrl = req.file.path.replace("\\" ,"/");
+    return res.status(201).json({message:'file restored',filePath:imageUrl});
+  }
+  //edit image
+  if(req.body.oldPath&&req.file){
+    const imageUrl = req.file.path.replace("\\" ,"/");
     clearImage(req.body.oldPath);
-    return {filePath:oldPath};
-  };
-  const imageUrl = req.file.path.replace("\\" ,"/");
-  return res.status(201).json({message:'file restored',filePath:imageUrl});
+    return res.status(201).json({message:'file restored',filePath:'/'+imageUrl});
+  }
 });
-
+//use graphql
 app.use(
   '/graphql',
   graphqlHTTP({
